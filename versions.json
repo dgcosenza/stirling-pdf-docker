@@ -1,0 +1,10 @@
+{
+  "last_updated": "2026-11-24",
+  "debian_version": "13",
+  "stirling_version": "3.5.0",
+  "java_version": "25",
+  "digest": "pending-hub-publish",
+  "trivy_fixable_critical_high": 0,
+  "grype_fixable_critical_high": 0,
+  "cves_seen": []
+}

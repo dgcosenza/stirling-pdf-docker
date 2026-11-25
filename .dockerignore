@@ -1,0 +1,17 @@
+.git
+.gitignore
+.github
+__pycache__
+*.py[cod]
+*.log
+*.sarif
+*.json
+CHANGELOG.md
+LICENSE
+README.md
+THIRD-PARTY-NOTICES.md
+SECURITY.md
+docker-compose.example.yml
+DOCKERHUB_SHORT_DESCRIPTION
+tests/
+.DS_Store

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.log
+*.sarif
+trivy-report*
+grype-report*
+sbom*.json
+provenance*.json
+meta*.json
+upstream-changes*.md
+.DS_Store

@@ -1,0 +1,207 @@
+# syntax=docker/dockerfile:1.7
+# Hardened Stirling-PDF (Open-Source MIT Core) on Debian 13 (trixie) + Temurin 25 JRE
+# Upstream: https://github.com/Stirling-Tools/Stirling-PDF (MIT core flavor only)
+# Maintainer: Daniel G. Cosenza from FNX Labs
+
+ARG DEBIAN_VERSION=trixie-slim
+ARG STIRLING_VERSION=3.5.0
+ARG GRADLE_IMAGE=gradle:9.7.1-jdk25
+ARG NODE_MAJOR_VERSION=24
+ARG TASK_VERSION=3.54.0
+# Adoptium GPG Key (DEB/RPM Signing Key) <temurin-dev@eclipse.org>
+ARG ADOPTIUM_GPG_FPR=3B04D753C9050D9A5D343F39843C48A565F8F04B
+ARG IMAGE_CREATED=1970-01-01T00:00:00Z
+ARG IMAGE_REVISION=dev
+ARG IMAGE_SOURCE=https://github.com/dgcosenza/stirling-pdf-docker
+
+# ---- Stage 1: Build MIT open-source core edition from official release tag ----
+FROM ${GRADLE_IMAGE} AS app-build
+
+ARG STIRLING_VERSION
+ARG NODE_MAJOR_VERSION
+ARG TASK_VERSION
+ARG TARGETARCH
+ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates git gnupg; \
+    update-ca-certificates; \
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x" | bash -; \
+    apt-get install -y --no-install-recommends nodejs; \
+    ARCH="$(dpkg --print-architecture)"; \
+    curl -fsSL "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/task_${TASK_VERSION}_linux_${ARCH}.deb" -o /tmp/task.deb; \
+    dpkg -i /tmp/task.deb; \
+    rm -f /tmp/task.deb; \
+    rm -rf /var/lib/apt/lists/*
+
+ENV JDK_JAVA_OPTIONS="--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED \
+  --add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED \
+  --add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED \
+  --add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED \
+  --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
+
+WORKDIR /app
+
+RUN set -eux; \
+    git clone --depth 1 --branch "v${STIRLING_VERSION}" https://github.com/Stirling-Tools/Stirling-PDF.git /app; \
+    # Explicitly purge proprietary/SaaS backend and engine trees before compiling \
+    # so only MIT-licensed open-source core code can enter the build artifacts. \
+    rm -rf /app/app/proprietary/src /app/app/saas /app/engine; \
+    JPDFIUM_PLATFORM="$([ "${TARGETARCH:-amd64}" = "arm64" ] && echo linux-arm64 || echo linux-x64)"; \
+    STIRLING_FLAVOR=core DISABLE_ADDITIONAL_FEATURES=true \
+    gradle :stirling-pdf:bootJar :buildRestartHelper \
+        -PbuildWithFrontend=true \
+        -PbuildWithPortal=false \
+        -PjpdfiumPlatforms="${JPDFIUM_PLATFORM}" \
+        -x spotlessApply -x spotlessCheck -x test -x sonarqube \
+        --no-daemon; \
+    ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
+    cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
+    cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar
+
+# ---- Stage 2: Minimal hardened Debian 13 (trixie-slim) + Temurin 25 JRE runtime ----
+FROM debian:${DEBIAN_VERSION} AS runtime
+
+ARG DEBIAN_VERSION
+ARG STIRLING_VERSION
+ARG ADOPTIUM_GPG_FPR
+ARG IMAGE_CREATED
+ARG IMAGE_REVISION
+ARG IMAGE_SOURCE
+ARG DEBIAN_FRONTEND=noninteractive
+
+LABEL org.opencontainers.image.title="Stirling-PDF (Open-Source Core) on Debian 13 (trixie)" \
+      org.opencontainers.image.description="Hardened open-source MIT core Stirling-PDF image on Debian 13 (trixie-slim) with Adoptium Temurin 25 JRE and OCR tools, maintained by Daniel G. Cosenza from FNX Labs." \
+      org.opencontainers.image.version="${STIRLING_VERSION}" \
+      org.opencontainers.image.revision="${IMAGE_REVISION}" \
+      org.opencontainers.image.created="${IMAGE_CREATED}" \
+      org.opencontainers.image.url="https://hub.docker.com/r/dgcosenza/stirling-pdf" \
+      org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      org.opencontainers.image.documentation="${IMAGE_SOURCE}#readme" \
+      org.opencontainers.image.vendor="Daniel G. Cosenza from FNX Labs" \
+      org.opencontainers.image.authors="Daniel G. Cosenza from FNX Labs" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.base.name="docker.io/library/debian:${DEBIAN_VERSION}" \
+      io.github.dgcosenza.stirling_pdf.version="${STIRLING_VERSION}" \
+      io.github.dgcosenza.stirling_pdf.flavor="core-mit"
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    VERSION_TAG="${STIRLING_VERSION}" \
+    TESS_BASE_PATH=/usr/share/tesseract-ocr/5/tessdata \
+    STIRLING_AOT_ENABLE="false" \
+    _JVM_OPTS="-XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/configs/heap_dumps -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -XX:ShenandoahGCHeuristics=adaptive -XX:ShenandoahUncommitDelay=1000 -XX:ShenandoahGuaranteedYoungGCInterval=10000 -XX:ShenandoahGuaranteedOldGCInterval=30000 -XX:+UseCompactObjectHeaders -XX:+UseStringDeduplication -XX:+ExplicitGCInvokesConcurrent -XX:ReservedCodeCacheSize=96m -XX:CICompilerCount=2 -XX:-UseBASE64Intrinsics -Dspring.threads.virtual.enabled=true -Djava.awt.headless=true" \
+    JAVA_CUSTOM_OPTS="" \
+    HOME=/home/stirlingpdfuser \
+    PUID=1000 \
+    PGID=1000 \
+    UMASK=022 \
+    STIRLING_TEMPFILES_DIRECTORY=/tmp/stirling-pdf \
+    TMPDIR=/tmp/stirling-pdf \
+    TEMP=/tmp/stirling-pdf \
+    TMP=/tmp/stirling-pdf \
+    DBUS_SESSION_BUS_ADDRESS=/dev/null
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get -y upgrade; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gpgv \
+        tzdata \
+        tini \
+        bash \
+        procps \
+        util-linux \
+        fontconfig \
+        poppler-utils \
+        poppler-data \
+        qpdf \
+        unpaper \
+        pngquant \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-spa \
+        tesseract-ocr-deu \
+        tesseract-ocr-fra \
+        tesseract-ocr-por \
+        tesseract-ocr-osd \
+        fonts-dejavu \
+        fonts-liberation2 \
+        fonts-noto-core \
+        libfreetype6 \
+        libfontconfig1 \
+        libx11-6 \
+        libxext6 \
+        libxrender1 \
+        libxt6 \
+        libgomp1; \
+    savedAptMark="$(apt-mark showmanual)"; \
+    apt-get install -y --no-install-recommends gpg; \
+    \
+    install -d -m 0755 /etc/apt/keyrings; \
+    KEY_TMP="$(mktemp)"; \
+    curl -fsSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" -o "${KEY_TMP}"; \
+    FPR="$(gpg --show-keys --with-colons "${KEY_TMP}" | awk -F: '/^fpr:/ { print $10; exit }')"; \
+    if [ "${FPR}" != "${ADOPTIUM_GPG_FPR}" ]; then \
+        echo "ERROR: Adoptium GPG fingerprint mismatch: got ${FPR}, expected ${ADOPTIUM_GPG_FPR}" >&2; \
+        exit 1; \
+    fi; \
+    gpg --batch --dearmor -o /etc/apt/keyrings/adoptium.gpg "${KEY_TMP}"; \
+    chmod 0644 /etc/apt/keyrings/adoptium.gpg; \
+    rm -f "${KEY_TMP}"; \
+    \
+    ARCH="$(dpkg --print-architecture)"; \
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb trixie main" \
+        > /etc/apt/sources.list.d/adoptium.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends temurin-25-jre; \
+    \
+    apt-mark auto '.*' > /dev/null; \
+    apt-mark manual ${savedAptMark} temurin-25-jre > /dev/null; \
+    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false gpg; \
+    rm -rf /var/lib/apt/lists/*; \
+    \
+    groupadd -g 1000 stirlingpdfgroup; \
+    useradd -u 1000 -g stirlingpdfgroup -d /home/stirlingpdfuser -s /bin/bash stirlingpdfuser; \
+    mkdir -p /home/stirlingpdfuser /configs /logs /customFiles \
+        /pipeline/watchedFolders /pipeline/finishedFolders /storage \
+        /tmp/stirling-pdf /tmp/stirling-pdf/heap_dumps \
+        /usr/share/fonts/opentype/noto /scripts; \
+    printf '%s\n' "${STIRLING_VERSION}" > /etc/stirling_version; \
+    chown -R 1000:1000 /home/stirlingpdfuser /configs /logs /customFiles \
+        /pipeline /storage /tmp/stirling-pdf /usr/share/tesseract-ocr/5/tessdata \
+        /usr/share/fonts/opentype/noto /scripts; \
+    java -version; \
+    qpdf --version; \
+    tesseract --version
+
+COPY --from=app-build --chown=1000:1000 /app/out-app.jar /app.jar
+COPY --from=app-build --chown=1000:1000 /app/out-restart-helper.jar /restart-helper.jar
+COPY --from=app-build --chown=1000:1000 /app/scripts/init.sh /scripts/init.sh
+COPY --from=app-build --chown=1000:1000 /app/scripts/init-without-ocr.sh /scripts/init-without-ocr.sh
+COPY --from=app-build --chown=1000:1000 /app/scripts/installFonts.sh /scripts/installFonts.sh
+COPY --from=app-build --chown=1000:1000 /app/scripts/stirling-diagnostics.sh /scripts/stirling-diagnostics.sh
+
+RUN set -eux; \
+    chmod 0755 /scripts/*.sh; \
+    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/diagnostics; \
+    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/stirling-diagnostics; \
+    # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
+    sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /scripts/init-without-ocr.sh
+
+VOLUME ["/configs", "/logs", "/customFiles", "/usr/share/tesseract-ocr/5/tessdata"]
+
+EXPOSE 8080/tcp
+
+USER stirlingpdfuser:stirlingpdfgroup
+
+ENTRYPOINT ["tini", "--", "/scripts/init.sh"]
+CMD []
+
+HEALTHCHECK --interval=30s --timeout=15s --start-period=120s --retries=5 \
+    CMD ["curl", "-fsS", "--max-time", "10", "http://127.0.0.1:8080/api/v1/info/status"]
