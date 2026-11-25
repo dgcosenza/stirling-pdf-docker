@@ -113,23 +113,6 @@ LABEL org.opencontainers.image.title="Stirling-PDF (Open-Source Core) on Debian 
       io.github.dgcosenza.stirling_pdf.version="${STIRLING_VERSION}" \
       io.github.dgcosenza.stirling_pdf.flavor="core-mit"
 
-ENV LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
-    VERSION_TAG="${STIRLING_VERSION}" \
-    TESS_BASE_PATH=/usr/share/tesseract-ocr/5/tessdata \
-    STIRLING_AOT_ENABLE="false" \
-    _JVM_OPTS="-XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/configs/heap_dumps -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -XX:ShenandoahGCHeuristics=adaptive -XX:ShenandoahUncommitDelay=1000 -XX:ShenandoahGuaranteedYoungGCInterval=10000 -XX:ShenandoahGuaranteedOldGCInterval=30000 -XX:+UseCompactObjectHeaders -XX:+UseStringDeduplication -XX:+ExplicitGCInvokesConcurrent -XX:ReservedCodeCacheSize=96m -XX:CICompilerCount=2 -XX:-UseBASE64Intrinsics -Dspring.threads.virtual.enabled=true -Djava.awt.headless=true" \
-    JAVA_CUSTOM_OPTS="" \
-    HOME=/home/stirlingpdfuser \
-    PUID=1000 \
-    PGID=1000 \
-    UMASK=022 \
-    STIRLING_TEMPFILES_DIRECTORY=/tmp/stirling-pdf \
-    TMPDIR=/tmp/stirling-pdf \
-    TEMP=/tmp/stirling-pdf \
-    TMP=/tmp/stirling-pdf \
-    DBUS_SESSION_BUS_ADDRESS=/dev/null
-
 RUN set -eux; \
     apt-get update; \
     apt-get -y upgrade; \
@@ -208,6 +191,23 @@ RUN set -eux; \
     java -version; \
     qpdf --version; \
     tesseract --version
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    VERSION_TAG="${STIRLING_VERSION}" \
+    TESS_BASE_PATH=/usr/share/tesseract-ocr/5/tessdata \
+    STIRLING_AOT_ENABLE="false" \
+    _JVM_OPTS="-XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/configs/heap_dumps -XX:+UnlockExperimentalVMOptions -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational -XX:ShenandoahGCHeuristics=adaptive -XX:ShenandoahUncommitDelay=1000 -XX:ShenandoahGuaranteedYoungGCInterval=10000 -XX:ShenandoahGuaranteedOldGCInterval=30000 -XX:+UseCompactObjectHeaders -XX:+UseStringDeduplication -XX:+ExplicitGCInvokesConcurrent -XX:ReservedCodeCacheSize=96m -XX:CICompilerCount=2 -XX:-UseBASE64Intrinsics -Dspring.threads.virtual.enabled=true -Djava.awt.headless=true" \
+    JAVA_CUSTOM_OPTS="" \
+    HOME=/home/stirlingpdfuser \
+    PUID=1000 \
+    PGID=1000 \
+    UMASK=022 \
+    STIRLING_TEMPFILES_DIRECTORY=/tmp/stirling-pdf \
+    TMPDIR=/tmp/stirling-pdf \
+    TEMP=/tmp/stirling-pdf \
+    TMP=/tmp/stirling-pdf \
+    DBUS_SESSION_BUS_ADDRESS=/dev/null
 
 COPY --from=app-build --chown=1000:1000 /app/out-app.jar /app.jar
 COPY --from=app-build --chown=1000:1000 /app/out-restart-helper.jar /restart-helper.jar
