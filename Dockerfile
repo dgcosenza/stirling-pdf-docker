@@ -3,11 +3,15 @@
 # Upstream: https://github.com/Stirling-Tools/Stirling-PDF (MIT core flavor only)
 # Maintainer: Daniel G. Cosenza from FNX Labs
 
-ARG DEBIAN_VERSION=trixie-slim
+ARG DEBIAN_BASE=debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
+ARG GRADLE_BASE=gradle:9.7.1-jdk25@sha256:e06837018d077ee7f1218e53499425ca7615702ad58856d980c154caa17eb093
 ARG STIRLING_VERSION=3.5.0
-ARG GRADLE_IMAGE=gradle:9.7.1-jdk25
-ARG NODE_MAJOR_VERSION=24
+ARG NODE_VERSION=24.22.3
+ARG NODE_SHA256_AMD64=4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
+ARG NODE_SHA256_ARM64=6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c
 ARG TASK_VERSION=3.54.0
+ARG TASK_SHA256_AMD64=fd2ca4e80422699cb8a85888fbca612bbcf3c62f946c1b4bb1ca9fbe9edb1c44
+ARG TASK_SHA256_ARM64=126194e3c718cd2cce169b2ce886d493764773727d3102ddde59ccf1d1378849
 # Adoptium GPG Key (DEB/RPM Signing Key) <temurin-dev@eclipse.org>
 ARG ADOPTIUM_GPG_FPR=3B04D753C9050D9A5D343F39843C48A565F8F04B
 ARG IMAGE_CREATED=1970-01-01T00:00:00Z
@@ -15,11 +19,17 @@ ARG IMAGE_REVISION=dev
 ARG IMAGE_SOURCE=https://github.com/dgcosenza/stirling-pdf-docker
 
 # ---- Stage 1: Build MIT open-source core edition from official release tag ----
-FROM ${GRADLE_IMAGE} AS app-build
+FROM ${GRADLE_BASE} AS app-build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG STIRLING_VERSION
-ARG NODE_MAJOR_VERSION
+ARG NODE_VERSION
+ARG NODE_SHA256_AMD64
+ARG NODE_SHA256_ARM64
 ARG TASK_VERSION
+ARG TASK_SHA256_AMD64
+ARG TASK_SHA256_ARM64
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -27,12 +37,22 @@ USER root
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates git gnupg; \
+    apt-get install -y --no-install-recommends curl ca-certificates git xz-utils; \
     update-ca-certificates; \
-    curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR_VERSION}.x" | bash -; \
-    apt-get install -y --no-install-recommends nodejs; \
     ARCH="$(dpkg --print-architecture)"; \
-    curl -fsSL "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/task_${TASK_VERSION}_linux_${ARCH}.deb" -o /tmp/task.deb; \
+    case "${ARCH}" in \
+        amd64) NODE_ARCH="x64"; NODE_SHA="${NODE_SHA256_AMD64}"; TASK_SHA="${TASK_SHA256_AMD64}" ;; \
+        arm64) NODE_ARCH="arm64"; NODE_SHA="${NODE_SHA256_ARM64}"; TASK_SHA="${TASK_SHA256_ARM64}" ;; \
+        *) echo "ERROR: Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSLo /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"; \
+    echo "${NODE_SHA}  /tmp/node.tar.xz" | sha256sum -c -; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1; \
+    rm -f /tmp/node.tar.xz; \
+    node --version; \
+    npm --version; \
+    curl -fsSLo /tmp/task.deb "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/task_${TASK_VERSION}_linux_${ARCH}.deb"; \
+    echo "${TASK_SHA}  /tmp/task.deb" | sha256sum -c -; \
     dpkg -i /tmp/task.deb; \
     rm -f /tmp/task.deb; \
     rm -rf /var/lib/apt/lists/*
@@ -60,12 +80,16 @@ RUN set -eux; \
         --no-daemon; \
     ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
     cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
-    cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar
+    cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar; \
+    # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
+    sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /app/scripts/init-without-ocr.sh; \
+    chmod 0755 /app/scripts/*.sh
 
 # ---- Stage 2: Minimal hardened Debian 13 (trixie-slim) + Temurin 25 JRE runtime ----
-FROM debian:${DEBIAN_VERSION} AS runtime
+FROM ${DEBIAN_BASE} AS runtime
 
-ARG DEBIAN_VERSION
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 ARG STIRLING_VERSION
 ARG ADOPTIUM_GPG_FPR
 ARG IMAGE_CREATED
@@ -84,7 +108,7 @@ LABEL org.opencontainers.image.title="Stirling-PDF (Open-Source Core) on Debian 
       org.opencontainers.image.vendor="Daniel G. Cosenza from FNX Labs" \
       org.opencontainers.image.authors="Daniel G. Cosenza from FNX Labs" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.base.name="docker.io/library/debian:${DEBIAN_VERSION}" \
+      org.opencontainers.image.base.name="debian:trixie-slim" \
       io.github.dgcosenza.stirling_pdf.version="${STIRLING_VERSION}" \
       io.github.dgcosenza.stirling_pdf.flavor="core-mit"
 
@@ -162,9 +186,11 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends temurin-25-jre; \
     \
     apt-mark auto '.*' > /dev/null; \
-    apt-mark manual ${savedAptMark} temurin-25-jre > /dev/null; \
+    printf '%s\n' "${savedAptMark}" | xargs -r apt-mark manual > /dev/null; \
+    apt-mark manual temurin-25-jre > /dev/null; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false gpg; \
-    rm -rf /var/lib/apt/lists/*; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
     \
     groupadd -g 1000 stirlingpdfgroup; \
     useradd -u 1000 -g stirlingpdfgroup -d /home/stirlingpdfuser -s /bin/bash stirlingpdfuser; \
@@ -176,23 +202,18 @@ RUN set -eux; \
     chown -R 1000:1000 /home/stirlingpdfuser /configs /logs /customFiles \
         /pipeline /storage /tmp/stirling-pdf /usr/share/tesseract-ocr/5/tessdata \
         /usr/share/fonts/opentype/noto /scripts; \
+    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/diagnostics; \
+    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/stirling-diagnostics; \
     java -version; \
     qpdf --version; \
     tesseract --version
 
 COPY --from=app-build --chown=1000:1000 /app/out-app.jar /app.jar
 COPY --from=app-build --chown=1000:1000 /app/out-restart-helper.jar /restart-helper.jar
-COPY --from=app-build --chown=1000:1000 /app/scripts/init.sh /scripts/init.sh
-COPY --from=app-build --chown=1000:1000 /app/scripts/init-without-ocr.sh /scripts/init-without-ocr.sh
-COPY --from=app-build --chown=1000:1000 /app/scripts/installFonts.sh /scripts/installFonts.sh
-COPY --from=app-build --chown=1000:1000 /app/scripts/stirling-diagnostics.sh /scripts/stirling-diagnostics.sh
-
-RUN set -eux; \
-    chmod 0755 /scripts/*.sh; \
-    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/diagnostics; \
-    ln -sf /scripts/stirling-diagnostics.sh /usr/local/bin/stirling-diagnostics; \
-    # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
-    sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /scripts/init-without-ocr.sh
+COPY --from=app-build --chown=1000:1000 --chmod=0755 /app/scripts/init.sh /scripts/init.sh
+COPY --from=app-build --chown=1000:1000 --chmod=0755 /app/scripts/init-without-ocr.sh /scripts/init-without-ocr.sh
+COPY --from=app-build --chown=1000:1000 --chmod=0755 /app/scripts/installFonts.sh /scripts/installFonts.sh
+COPY --from=app-build --chown=1000:1000 --chmod=0755 /app/scripts/stirling-diagnostics.sh /scripts/stirling-diagnostics.sh
 
 VOLUME ["/configs", "/logs", "/customFiles", "/usr/share/tesseract-ocr/5/tessdata"]
 

@@ -1,20 +1,16 @@
-# Example deployment for dgcosenza/stirling-pdf (MIT open-source core)
-# Place behind an authenticating reverse proxy for any external access.
-
 services:
   stirling-pdf:
     image: dgcosenza/stirling-pdf:latest
     container_name: stirling-pdf
     restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
-          memory: 2048M
-        reservations:
-          memory: 512M
+    tmpfs:
+      - /tmp/stirling-pdf:nosuid,size=512m
+      - /home/stirlingpdfuser:nosuid,size=64m
     environment:
       - SYSTEM_DEFAULTLOCALE=en-GB
       - LANGUAGE=en_GB:en
@@ -34,8 +30,10 @@ services:
       timeout: 15s
       retries: 5
       start_period: 120s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "20m"
-        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2048M
+        reservations:
+          memory: 1024M

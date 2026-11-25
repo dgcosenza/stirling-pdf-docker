@@ -15,6 +15,7 @@ trap cleanup EXIT
 
 echo "=== Smoke testing ${IMAGE} ==="
 docker run -d --name "${CONTAINER_NAME}" \
+    --cap-drop ALL \
     --security-opt no-new-privileges:true \
     -e SYSTEM_DEFAULTLOCALE=en-GB \
     -e SPRINGDOC_APIDOCS_ENABLED=false \

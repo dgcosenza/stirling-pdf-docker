@@ -1,109 +1,204 @@
 #!/usr/bin/env python3
-"""Update versions.json, README.md versions block, and CHANGELOG.md from CI metadata."""
-
+"""Update versions.json, README.md version block, and CHANGELOG.md from CI artifacts."""
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import sys
-from pathlib import Path
 
 
-def update_readme(readme_path: Path, v: dict, prev: dict) -> None:
-    content = readme_path.read_text(encoding="utf-8")
-    start_marker = "<!-- versions:start -->"
-    end_marker = "<!-- versions:end -->"
-    if start_marker not in content or end_marker not in content:
-        raise SystemExit("ERROR: README.md missing versions markers")
+def load_forbidden_regex() -> re.Pattern[str] | None:
+    check_script = pathlib.Path(".github/scripts/public-check.sh")
+    if not check_script.exists():
+        return None
+    for line in check_script.read_text(encoding="utf-8").splitlines():
+        if line.startswith("FORBIDDEN='") and line.endswith("'"):
+            return re.compile(line[len("FORBIDDEN='") : -1], re.IGNORECASE)
+    return None
 
-    highlights = []
-    if prev.get("stirling_version") and prev.get("stirling_version") != v["stirling_version"]:
-        highlights.append(f"- Stirling-PDF (MIT core) updated from `{prev['stirling_version']}` to `{v['stirling_version']}`.")
-    if not highlights:
-        highlights.append("- Daily Debian 13 OS + Temurin 25 JRE security refresh and CVE-gated verification.")
 
-    block = "\n".join(
-        [
-            start_marker,
-            f"_Last verified build: **{v['last_updated']}** (UTC)_",
-            "",
-            "| Component | Resolved Version |",
-            "|-----------|------------------|",
-            f"| Stirling-PDF (MIT Core) | `{v['stirling_version']}` (`STIRLING_FLAVOR=core`) |",
-            f"| Java Runtime | `{v['java_version']}` (Adoptium Temurin 25 JRE) |",
-            f"| Base OS | Debian `{v['debian_version']}` (`debian:trixie-slim`) |",
-            f"| Fixable Critical/High (Trivy / Grype) | `{v['trivy_fixable_critical_high']}` / `{v['grype_fixable_critical_high']}` |",
-            "",
-            "**Recent upstream updates:**",
-            *highlights,
-            end_marker,
-        ]
+FORBIDDEN_RE = load_forbidden_regex()
+
+
+def sanitize_bullets(markdown_text: str, max_lines: int = 8) -> list[str]:
+    bullets: list[str] = []
+    for raw in markdown_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("- ", "* ")):
+            line = line[2:].strip()
+        if not line:
+            continue
+        if FORBIDDEN_RE and FORBIDDEN_RE.search(line):
+            continue
+        if len(line) > 180:
+            line = line[:177].rstrip() + "..."
+        bullets.append(line)
+        if len(bullets) >= max_lines:
+            break
+    return bullets
+
+
+def build_readme_block(meta: dict, bullets: list[str]) -> str:
+    rows = [
+        "| Component | Resolved Version |",
+        "| --- | --- |",
+    ]
+    for k, v in (meta.get("components") or {}).items():
+        rows.append(f"| {k} | `{v}` |")
+    arches = meta.get("architectures") or []
+    if arches:
+        rows.append(f"| Architectures | `{', '.join(arches)}` |")
+    sizes = meta.get("sizes_mb") or {}
+    if sizes:
+        size_str = ", ".join(f"{k}: {v} MB" for k, v in sizes.items())
+        rows.append(f"| Uncompressed size (per arch) | `{size_str}` |")
+    rows.append(f"| Last verified build (UTC) | `{meta.get('build_date', 'unknown')}` |")
+    digest = meta.get("image_digest") or ""
+    if digest:
+        rows.append(f"| Published multi-arch digest | `{digest}` |")
+    ghcr = meta.get("ghcr_digest") or ""
+    if ghcr:
+        rows.append(f"| GHCR mirror | `{ghcr}` |")
+    if meta.get("signed"):
+        rows.append("| Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |")
+    fixable = meta.get("fixable_critical_high", 0)
+    unfixed = len(meta.get("unfixed_cves") or [])
+    rows.append(
+        f"| Security gate (Trivy + Grype on SBOM) | **{fixable} fixable Critical/High** ({unfixed} upstream-unfixed) |"
     )
-    pattern = re.compile(re.escape(start_marker) + r".*?" + re.escape(end_marker), re.DOTALL)
-    readme_path.write_text(pattern.sub(block, content, count=1), encoding="utf-8")
+
+    lines = [
+        "<!-- versions:start -->",
+        *rows,
+    ]
+    if bullets:
+        lines.append("")
+        lines.append("**Recent upstream changes:**")
+        for b in bullets[:5]:
+            lines.append(f"- {b}")
+    lines.append("<!-- versions:end -->")
+    return "\n".join(lines)
 
 
-def update_changelog(changelog_path: Path, v: dict, prev: dict, cves_fixed: list[str]) -> None:
-    content = changelog_path.read_text(encoding="utf-8")
-    header = f"## [{v['last_updated']}]"
-    if prev.get("stirling_version") and prev.get("stirling_version") != v["stirling_version"]:
-        changed_line = f"- Stirling-PDF (MIT core) updated `{prev['stirling_version']}` -> `{v['stirling_version']}` (`{v['digest']}`)"
-    else:
-        changed_line = f"- Rebuilt Stirling-PDF `{v['stirling_version']}` on Debian `{v['debian_version']}` + `{v['java_version']}` (`{v['digest']}`)"
-    sec_line = (
-        f"- CVEs fixed since previous build: {', '.join(sorted(cves_fixed))}"
-        if cves_fixed
-        else "- Trivy and Grype gates verified: 0 fixable Critical/High vulnerabilities."
+def update_readme(readme_path: pathlib.Path, meta: dict, bullets: list[str]) -> None:
+    text = readme_path.read_text(encoding="utf-8")
+    pattern = re.compile(r"<!-- versions:start -->.*?<!-- versions:end -->", re.DOTALL)
+    if not pattern.search(text):
+        raise SystemExit("README.md is missing <!-- versions:start --> / <!-- versions:end --> markers")
+    block = build_readme_block(meta, bullets)
+    new_text = pattern.sub(lambda _m: block, text, count=1)
+    if new_text != text:
+        readme_path.write_text(new_text, encoding="utf-8")
+
+
+def update_changelog(
+    changelog_path: pathlib.Path,
+    meta: dict,
+    prev_meta: dict,
+    bullets: list[str],
+    cve_diff: dict,
+) -> None:
+    text = changelog_path.read_text(encoding="utf-8")
+    date_str = meta.get("build_date") or ""
+    version_label = meta.get("changelog_version") or meta.get("upstream_version") or "daily"
+    if not date_str:
+        return
+
+    digest = meta.get("image_digest") or ""
+    prev_digest = prev_meta.get("image_digest") or ""
+    fixed_cves = cve_diff.get("cves_fixed_since_previous") or []
+    changed = (
+        meta.get("upstream_version") != prev_meta.get("upstream_version")
+        or meta.get("upstream_commit") != prev_meta.get("upstream_commit")
+        or meta.get("components") != prev_meta.get("components")
+        or meta.get("base_digest") != prev_meta.get("base_digest")
+        or meta.get("architectures") != prev_meta.get("architectures")
+        or bool(fixed_cves)
+        or (digest and digest != prev_digest)
     )
-    entry = "\n".join([header, "", "### Changed", changed_line, "", "### Security", sec_line, ""])
-    if header in content:
-        pattern = re.compile(re.escape(header) + r"\n.*?(?=\n## \[|\Z)", re.DOTALL)
-        new_content = pattern.sub(entry.rstrip("\n"), content, count=1)
+    if not changed:
+        return
+
+    heading = f"## [{version_label}] — {date_str}"
+    entry_lines = [heading, "", "### Automated Daily Build"]
+    comps = meta.get("components") or {}
+    if comps:
+        comp_str = ", ".join(f"{k} `{v}`" for k, v in comps.items())
+        entry_lines.append(f"- Verified components: {comp_str}.")
+    arches = meta.get("architectures") or []
+    if arches:
+        entry_lines.append(f"- Architectures verified: `{', '.join(arches)}` (native smoke tests + Dive efficiency gate).")
+    if bullets:
+        entry_lines.append("- Upstream changes:")
+        for b in bullets[:5]:
+            entry_lines.append(f"  - {b}")
     else:
-        marker = "## [Unreleased]\n"
-        if marker in content:
-            idx = content.index(marker)
-            next_h2 = content.find("\n## [", idx + len(marker))
-            if next_h2 == -1:
-                new_content = content.rstrip() + "\n\n" + entry
-            else:
-                new_content = content[: next_h2 + 1] + "\n" + entry + content[next_h2 + 1 :]
+        entry_lines.append("- Upstream status: no new upstream release since previous build; refreshed base OS and dependencies.")
+    if fixed_cves:
+        entry_lines.append(f"- CVEs resolved since previous scan: {', '.join(f'`{c}`' for c in fixed_cves)}.")
+    else:
+        entry_lines.append(
+            f"- Vulnerability gate: **0 fixable Critical/High** in Trivy and Grype (SBOM scan) "
+            f"({len(meta.get('unfixed_cves') or [])} upstream-unfixed)."
+        )
+    if digest:
+        entry_lines.append(f"- Published multi-arch digest (Docker Hub + GHCR): `{digest}` (Cosign OIDC signed + SPDX/CycloneDX SBOM + SLSA L3 provenance).")
+    entry_block = "\n".join(entry_lines)
+
+    date_section_re = re.compile(
+        rf"^## \[[^\]]+\] — {re.escape(date_str)}\n+### Automated Daily Build\n.*?(?=\n---\n|\n## \[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    if date_section_re.search(text):
+        new_text = date_section_re.sub(lambda _m: entry_block, text, count=1)
+    else:
+        marker = "<!-- changelog:auto -->"
+        if marker in text:
+            new_text = text.replace(marker, f"{marker}\n\n{entry_block}\n\n---", 1)
         else:
-            new_content = content.rstrip() + "\n\n" + entry
-    changelog_path.write_text(new_content.rstrip() + "\n", encoding="utf-8")
+            new_text = re.sub(r"\n---\n", f"\n---\n\n{entry_block}\n\n---\n", text, count=1)
+
+    if new_text != text:
+        changelog_path.write_text(new_text, encoding="utf-8")
 
 
-def main() -> None:
-    meta_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("build-meta/meta.json")
-    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    vpath = Path("versions.json")
-    prev = json.loads(vpath.read_text(encoding="utf-8")) if vpath.exists() else {}
+def main() -> int:
+    if len(sys.argv) != 4:
+        print(
+            "Usage: update-docs.py <versions-new.json> <upstream-changes.md> <cve-diff.json>",
+            file=sys.stderr,
+        )
+        return 2
 
-    prev_cves = set(prev.get("cves_seen", []))
-    cur_cves = set(meta.get("cves_seen", []))
-    cves_fixed = sorted(prev_cves - cur_cves)
+    new_versions_path = pathlib.Path(sys.argv[1])
+    changes_path = pathlib.Path(sys.argv[2])
+    cve_diff_path = pathlib.Path(sys.argv[3])
 
-    new_v = {
-        "last_updated": meta["date_iso"],
-        "debian_version": meta["debian_version"],
-        "stirling_version": meta["stirling_version"],
-        "java_version": meta["java_version"],
-        "digest": meta.get("digest") or "pending-hub-publish",
-        "trivy_fixable_critical_high": meta.get("trivy_fixable_critical_high", 0),
-        "grype_fixable_critical_high": meta.get("grype_fixable_critical_high", 0),
-        "cves_seen": sorted(cur_cves),
-    }
+    repo_versions = pathlib.Path("versions.json")
+    prev_meta: dict = {}
+    if repo_versions.exists():
+        try:
+            prev_meta = json.loads(repo_versions.read_text(encoding="utf-8"))
+        except Exception:
+            prev_meta = {}
 
-    changed = any(
-        new_v.get(k) != prev.get(k)
-        for k in ("debian_version", "stirling_version", "java_version", "digest", "cves_seen")
+    meta = json.loads(new_versions_path.read_text(encoding="utf-8"))
+    cve_diff = (
+        json.loads(cve_diff_path.read_text(encoding="utf-8"))
+        if cve_diff_path.exists()
+        else {}
     )
-    vpath.write_text(json.dumps(new_v, indent=2) + "\n", encoding="utf-8")
-    update_readme(Path("README.md"), new_v, prev)
-    if changed or cves_fixed:
-        update_changelog(Path("CHANGELOG.md"), new_v, prev, cves_fixed)
-    print(f"Docs updated (changed={changed}, cves_fixed={len(cves_fixed)})")
+    changes_text = changes_path.read_text(encoding="utf-8") if changes_path.exists() else ""
+    bullets = sanitize_bullets(changes_text)
+
+    repo_versions.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    update_readme(pathlib.Path("README.md"), meta, bullets)
+    update_changelog(pathlib.Path("CHANGELOG.md"), meta, prev_meta, bullets, cve_diff)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,0 +1,4 @@
+# Efficiency gate (overall >= 95% strict, <= 5% wasted user bytes).
+rules:
+  lowestEfficiency: 0.95
+  highestUserWastedPercent: 0.05
