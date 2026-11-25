@@ -28,11 +28,22 @@ A hardened, multi-arch, rootless **open-source MIT core** **Stirling-PDF** conta
 | Component | Resolved Version |
 | --- | --- |
 | Stirling-PDF (MIT core) | `3.5.0` |
-| Java Runtime | `Adoptium Temurin 25 JRE` |
-| Base OS | `Debian 13 (trixie-slim)` |
+| Java Runtime | `openjdk version "25.0.5.1" 2026-11-17 LTS` |
+| Base OS | `Debian 13.8 (trixie-slim)` |
 | Architectures | `linux/amd64, linux/arm64` |
+| Uncompressed size (per arch) | `amd64: 460.8 MB, arm64: 844.5 MB` |
 | Last verified build (UTC) | `2026-11-25` |
-| Security gate (Trivy + Grype on SBOM) | **0 fixable Critical/High** |
+| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:9cfe52f02994d36cc74d41483b46640eec4d66082af288399e2aedf880580eda` |
+| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:9cfe52f02994d36cc74d41483b46640eec4d66082af288399e2aedf880580eda` |
+| Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |
+| Security gate (Trivy + Grype on SBOM) | **0 fixable Critical/High** (74 upstream-unfixed) |
+
+**Recent upstream changes:**
+- **Stirling-PDF:** `3.5.0` -> `3.5.0`
+- **Upstream version changed:** `no`
+- Official Stirling-PDF v3.5.0 release (https://github.com/Stirling-Tools/Stirling-PDF/releases/tag/v3.5.0).
+- Stirling Office Convert has now replaced Libreoffice in our docker containers!
+- Along with speed increases and better quality conversions it also means our docker going forward in 3.5.1 will be half the size!  Thank you to everyone who sent us example files...
 <!-- versions:end -->
 
 ---
