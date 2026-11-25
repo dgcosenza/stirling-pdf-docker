@@ -33,6 +33,7 @@ ARG TASK_SHA256_ARM64
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 
+# hadolint ignore=DL3002
 USER root
 
 RUN set -eux; \
