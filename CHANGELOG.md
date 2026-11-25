@@ -22,7 +22,7 @@ Maintained by **Daniel G. Cosenza from FNX Labs**.
   - Stirling Office Convert has now replaced Libreoffice in our docker containers!
   - Along with speed increases and better quality conversions it also means our docker going forward in 3.5.1 will be half the size!  Thank you to everyone who sent us example files...
 - Vulnerability gate: **0 fixable Critical/High** in Trivy and Grype (SBOM scan) (74 upstream-unfixed).
-- Published multi-arch digest (Docker Hub + GHCR): `dgcosenza/stirling-pdf@sha256:2d61e0fbd8720397a471e1ec6f51ef7470c22fc101236ff100342cab5ea8d08c` (Cosign OIDC signed + SPDX/CycloneDX SBOM + SLSA L3 provenance).
+- Published multi-arch digest (Docker Hub + GHCR): `dgcosenza/stirling-pdf@sha256:5fd5315a0a55125e9621d3f6caad1ac54765b0e3deb4d96d2002432f90114ef9` (Cosign OIDC signed + SPDX/CycloneDX SBOM + SLSA L3 provenance).
 ---
 
 ---

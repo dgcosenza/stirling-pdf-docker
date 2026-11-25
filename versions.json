@@ -26,9 +26,9 @@
   "base_digest": "sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0",
   "debian_version": "13.8",
   "build_date": "2026-11-25",
-  "built_at_utc": "2026-11-25T19:12:11Z",
-  "image_digest": "dgcosenza/stirling-pdf@sha256:2d61e0fbd8720397a471e1ec6f51ef7470c22fc101236ff100342cab5ea8d08c",
-  "ghcr_digest": "ghcr.io/dgcosenza/stirling-pdf@sha256:2d61e0fbd8720397a471e1ec6f51ef7470c22fc101236ff100342cab5ea8d08c",
+  "built_at_utc": "2026-11-25T22:35:32Z",
+  "image_digest": "dgcosenza/stirling-pdf@sha256:5fd5315a0a55125e9621d3f6caad1ac54765b0e3deb4d96d2002432f90114ef9",
+  "ghcr_digest": "ghcr.io/dgcosenza/stirling-pdf@sha256:5fd5315a0a55125e9621d3f6caad1ac54765b0e3deb4d96d2002432f90114ef9",
   "fixable_critical_high": 0,
   "unfixed_cves": [
     "CVE-2025-69720",
