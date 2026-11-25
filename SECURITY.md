@@ -20,4 +20,6 @@ Because this image contains only the MIT-licensed core of Stirling-PDF (excludin
 
 **Do not open a public issue** for security vulnerabilities.
 
-Report privately through GitHub's private vulnerability reporting: open the repository's **Security** tab and select **Report a vulnerability**.
+Report privately through GitHub Security Advisories: open the repository's **Security** tab or submit a private advisory directly at [dgcosenza/stirling-pdf-docker Security Advisories](https://github.com/dgcosenza/stirling-pdf-docker/security/advisories/new).
+
+For upstream Stirling-PDF vulnerabilities, follow the [Stirling-Tools/Stirling-PDF Security Policy](https://github.com/Stirling-Tools/Stirling-PDF/security/policy).
