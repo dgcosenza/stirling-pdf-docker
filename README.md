@@ -31,10 +31,10 @@ A hardened, multi-arch, rootless **open-source MIT core** **Stirling-PDF** conta
 | Java Runtime | `openjdk version "25.0.5.1" 2026-11-17 LTS` |
 | Base OS | `Debian 13.8 (trixie-slim)` |
 | Architectures | `linux/amd64, linux/arm64` |
-| Uncompressed size (per arch) | `amd64: 460.8 MB, arm64: 844.5 MB` |
+| Uncompressed size (per arch) | `amd64: 461.5 MB, arm64: 847.0 MB` |
 | Last verified build (UTC) | `2026-11-25` |
-| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:9cfe52f02994d36cc74d41483b46640eec4d66082af288399e2aedf880580eda` |
-| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:9cfe52f02994d36cc74d41483b46640eec4d66082af288399e2aedf880580eda` |
+| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:2d61e0fbd8720397a471e1ec6f51ef7470c22fc101236ff100342cab5ea8d08c` |
+| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:2d61e0fbd8720397a471e1ec6f51ef7470c22fc101236ff100342cab5ea8d08c` |
 | Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |
 | Security gate (Trivy + Grype on SBOM) | **0 fixable Critical/High** (74 upstream-unfixed) |
 
