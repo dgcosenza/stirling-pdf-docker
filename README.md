@@ -31,12 +31,12 @@ A hardened, multi-arch, rootless **open-source MIT core** **Stirling-PDF** conta
 | Java Runtime | `openjdk version "25.0.5.1" 2026-11-17 LTS` |
 | Base OS | `Debian 13.8 (trixie-slim)` |
 | Architectures | `linux/amd64, linux/arm64` |
-| Uncompressed size (per arch) | `amd64: 461.5 MB, arm64: 847.0 MB` |
-| Last verified build (UTC) | `2026-11-25` |
-| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:b8e235d99f030c21f871bb557d63ed62ca5905a184962a7f52b2705f94302af9` |
-| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:b8e235d99f030c21f871bb557d63ed62ca5905a184962a7f52b2705f94302af9` |
+| Uncompressed size (per arch) | `amd64: 461.6 MB, arm64: 847.1 MB` |
+| Last verified build (UTC) | `2026-11-26` |
+| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:ed53bd46a0af2c92126565c50db364195ed9153133ff635aeb51a103583298d2` |
+| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:ed53bd46a0af2c92126565c50db364195ed9153133ff635aeb51a103583298d2` |
 | Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |
-| Security gate (Trivy + Grype on SBOM) | **0 fixable findings of any severity** (74 upstream-unfixed) |
+| Security gate (Trivy + Grype on SBOM) | **0 fixable findings of any severity** (76 upstream-unfixed) |
 
 **Recent upstream changes:**
 - **Stirling-PDF:** `3.5.0` -> `3.5.0`
