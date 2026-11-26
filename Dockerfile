@@ -111,8 +111,11 @@ RUN set -eux; \
     cp -a "${PATCH_DIR}/classes/com/posthog/java/shaded/org/json/." "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json/"; \
     printf '%s\n' "version=${ORG_JSON_VERSION}" 'groupId=org.json' 'artifactId=json' > "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties"; \
     grep -F "version=${ORG_JSON_VERSION}" "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties" > /dev/null; \
-    jar cf "${POSTHOG_JAR}" -C "${PATCH_DIR}/posthog" .; \
-    jar cf /app/out-app.jar -C "${PATCH_DIR}/app" .; \
+    cp "${PATCH_DIR}/posthog/META-INF/MANIFEST.MF" "${PATCH_DIR}/posthog-manifest.mf"; \
+    cp "${PATCH_DIR}/app/META-INF/MANIFEST.MF" "${PATCH_DIR}/app-manifest.mf"; \
+    rm -f "${PATCH_DIR}/posthog/META-INF/MANIFEST.MF" "${PATCH_DIR}/app/META-INF/MANIFEST.MF"; \
+    jar cfm "${POSTHOG_JAR}" "${PATCH_DIR}/posthog-manifest.mf" -C "${PATCH_DIR}/posthog" .; \
+    jar cfm /app/out-app.jar "${PATCH_DIR}/app-manifest.mf" -C "${PATCH_DIR}/app" .; \
     echo "Bundled org.json entries:"; \
     jar tf /app/out-app.jar | grep -F 'BOOT-INF/lib/json-' || true; \
     jar tf /app/out-app.jar | grep -F "BOOT-INF/lib/json-${ORG_JSON_VERSION}.jar" > /dev/null; \
