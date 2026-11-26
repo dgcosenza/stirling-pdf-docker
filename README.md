@@ -36,7 +36,7 @@ A hardened, multi-arch, rootless **open-source MIT core** **Stirling-PDF** conta
 | Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:b8e235d99f030c21f871bb557d63ed62ca5905a184962a7f52b2705f94302af9` |
 | GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:b8e235d99f030c21f871bb557d63ed62ca5905a184962a7f52b2705f94302af9` |
 | Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |
-| Security gate (Trivy + Grype on SBOM) | **0 fixable Critical/High** (74 upstream-unfixed) |
+| Security gate (Trivy + Grype on SBOM) | **0 fixable findings of any severity** (74 upstream-unfixed) |
 
 **Recent upstream changes:**
 - **Stirling-PDF:** `3.5.0` -> `3.5.0`
@@ -226,8 +226,8 @@ gh attestation verify oci://ghcr.io/dgcosenza/stirling-pdf:latest --owner dgcose
 ## Security
 
 - **Preflight gates:** Every push and PR runs **Hadolint** (blocking on warning+), **Gitleaks** secret scanning across git history, and **public-content/attribution** checks.
-- **Vulnerability scan policy:** Every build generates **SPDX** and **CycloneDX** SBOMs with **Syft** per architecture, scans with **Trivy** (OS + Java JAR libraries: table, JSON, SARIF upload, blocking `--ignore-unfixed` gate) and **Grype** scanning the SPDX SBOM (`--only-fixed --fail-on high`), and enforces a **Dive** efficiency gate (`>= 95%`, `<= 5%` wasted user bytes).
-- **Current status:** **0 fixable Critical/High** vulnerabilities across Debian 13 OS packages and compiled Java dependencies.
+- **Vulnerability scan policy (all severities with a fix):** Every build generates **SPDX** and **CycloneDX** SBOMs with **Syft** per architecture, scans with **Trivy** (OS + Java JAR libraries: table, JSON, SARIF upload, blocking `--ignore-unfixed` gate) and **Grype** scanning the SPDX SBOM (`--only-fixed --fail-on negligible`), and enforces a **Dive** efficiency gate (`>= 95%`, `<= 5%` wasted user bytes).
+- **Current status:** **0 fixable findings of any severity** vulnerabilities across Debian 13 OS packages and compiled Java dependencies.
 - **Dependency automation:** Renovate (`renovate.json`) pins base image digests and GitHub Action commit SHAs; Dependabot security alerts and OpenSSF Scorecard monitoring are enabled.
 - See [`SECURITY.md`](https://github.com/dgcosenza/stirling-pdf-docker/blob/main/SECURITY.md) for private disclosure instructions.
 
@@ -249,7 +249,7 @@ docker buildx build --platform linux/amd64 --load \
 
 1. **Preflight & upstream check:** Runs public-content checks, **Hadolint**, and **Gitleaks**; queries the authenticated GitHub API (`Stirling-Tools/Stirling-PDF`) for the latest official release and resolves digest-pinned Debian 13 and Gradle base images, emitting `upstream-changes.md`.
 2. **Multi-arch no-cache rebuild:** Compiles the MIT open-source core edition (`STIRLING_FLAVOR=core`, proprietary trees purged) natively on `linux/amd64` and `linux/arm64` runners with `--no-cache` on schedule and `apt-get upgrade` on `debian:trixie-slim` + Adoptium Temurin 25 JRE.
-3. **Smoke, Dive & vulnerability gates:** Runs [`tests/smoke.sh`](https://github.com/dgcosenza/stirling-pdf-docker/blob/main/tests/smoke.sh) natively on both architectures, enforces the **Dive** efficiency gate (`>= 95%`, `<= 5%` wasted), generates **Syft** SPDX + CycloneDX SBOMs per arch, and gates publication on **0 fixable Critical/High** in both **Trivy** and **Grype** (scanning the SPDX SBOM).
+3. **Smoke, Dive & vulnerability gates:** Runs [`tests/smoke.sh`](https://github.com/dgcosenza/stirling-pdf-docker/blob/main/tests/smoke.sh) natively on both architectures, enforces the **Dive** efficiency gate (`>= 95%`, `<= 5%` wasted), generates **Syft** SPDX + CycloneDX SBOMs per arch, and gates publication on **0 fixable findings of any severity** in both **Trivy** and **Grype** (scanning the SPDX SBOM).
 4. **Dual-registry publish & supply-chain signing:** Assembles the multi-arch OCI manifest index on **GHCR** (`ghcr.io/dgcosenza/stirling-pdf`) and mirrors the identical digest to **Docker Hub** (`dgcosenza/stirling-pdf`) with tags `latest`, `<version>`, `<version>-<YYYYMMDD>`, and `sha-<short>`; signs every digest and attaches SPDX/CycloneDX SBOM attestations via **Cosign** keyless OIDC; emits **SLSA Build L3** provenance; and publishes a signed **GitHub Release** with checksums and SBOMs.
 5. **Automated documentation sync:** Commits updated `versions.json`, the README `Current Versions` block, and a dated `CHANGELOG.md` entry via `github-actions[bot]` (`[skip ci]`, validated by `public-check.sh`), then syncs the Docker Hub overview and short description.
 6. **Failure alerting:** Opens or updates a single GitHub issue labeled `ci-failure` on any `main` or scheduled failure, and auto-closes it on the next green run.
