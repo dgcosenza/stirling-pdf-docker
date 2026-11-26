@@ -76,20 +76,16 @@ RUN set -eux; \
     # so only MIT-licensed open-source core code can enter the build artifacts. \
     rm -rf /app/app/proprietary/src /app/app/saas /app/engine; \
     JPDFIUM_PLATFORM="$([ "${TARGETARCH:-amd64}" = "arm64" ] && echo linux-arm64 || echo linux-x64)"; \
-    printf '%s\n' \
-        'allprojects {' \
-        '  configurations.configureEach {' \
-        '    resolutionStrategy.eachDependency { d ->' \
-        "      if (d.requested.group == 'org.json' && d.requested.name == 'json') {" \
-        "        d.useVersion(System.getenv('ORG_JSON_VERSION'))" \
-        "        d.because('Use the latest patched org.json release')" \
-        '      }' \
-        '    }' \
-        '  }' \
-        '}' > /tmp/override-deps.init.gradle; \
-    ORG_JSON_VERSION="${ORG_JSON_VERSION}" \
+    # Upstream resolves org.json:json transitively to an unpatched release. Add it as an \
+    # explicit dependency of the core module: Gradle conflict resolution selects the \
+    # highest version, so the CI-resolved patched release replaces the transitive one \
+    # and is packaged in the bootJar. A Gradle init-script resolutionStrategy override \
+    # was tried first but dropped the library from the fat jar, so do not switch back. \
+    sed -i "/^dependencies {/a\\    implementation 'org.json:json:${ORG_JSON_VERSION}'" \
+        /app/app/core/build.gradle; \
+    grep -F "org.json:json:${ORG_JSON_VERSION}" /app/app/core/build.gradle > /dev/null; \
     STIRLING_FLAVOR=core DISABLE_ADDITIONAL_FEATURES=true \
-    gradle -I /tmp/override-deps.init.gradle :stirling-pdf:bootJar :buildRestartHelper \
+    gradle :stirling-pdf:bootJar :buildRestartHelper \
         -PbuildWithFrontend=true \
         -PbuildWithPortal=false \
         -PjpdfiumPlatforms="${JPDFIUM_PLATFORM}" \
@@ -97,7 +93,8 @@ RUN set -eux; \
         --no-daemon; \
     ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
     cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
-    jar tf /app/out-app.jar | grep "^BOOT-INF/lib/json-" ; \
+    echo "Bundled org.json entries:"; \
+    jar tf /app/out-app.jar | grep -F 'BOOT-INF/lib/json-' || true; \
     jar tf /app/out-app.jar | grep -F "BOOT-INF/lib/json-${ORG_JSON_VERSION}.jar" > /dev/null; \
     cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar; \
     # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
