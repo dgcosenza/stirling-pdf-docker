@@ -9,6 +9,9 @@ ARG STIRLING_VERSION=3.5.0
 ARG NODE_VERSION=24.22.3
 ARG NODE_SHA256_AMD64=4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
 ARG NODE_SHA256_ARM64=6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c
+# org.json:json is a transitive dependency of the upstream build and is pinned there to an old release;
+# CI resolves the latest Maven Central release every run and overrides it (documented default below).
+ARG ORG_JSON_VERSION=20260814
 ARG TASK_VERSION=3.54.0
 ARG TASK_SHA256_AMD64=fd2ca4e80422699cb8a85888fbca612bbcf3c62f946c1b4bb1ca9fbe9edb1c44
 ARG TASK_SHA256_ARM64=126194e3c718cd2cce169b2ce886d493764773727d3102ddde59ccf1d1378849
@@ -27,6 +30,7 @@ ARG STIRLING_VERSION
 ARG NODE_VERSION
 ARG NODE_SHA256_AMD64
 ARG NODE_SHA256_ARM64
+ARG ORG_JSON_VERSION
 ARG TASK_VERSION
 ARG TASK_SHA256_AMD64
 ARG TASK_SHA256_ARM64
@@ -72,8 +76,20 @@ RUN set -eux; \
     # so only MIT-licensed open-source core code can enter the build artifacts. \
     rm -rf /app/app/proprietary/src /app/app/saas /app/engine; \
     JPDFIUM_PLATFORM="$([ "${TARGETARCH:-amd64}" = "arm64" ] && echo linux-arm64 || echo linux-x64)"; \
+    printf '%s\n' \
+        'allprojects {' \
+        '  configurations.configureEach {' \
+        '    resolutionStrategy.eachDependency { d ->' \
+        "      if (d.requested.group == 'org.json' && d.requested.name == 'json') {" \
+        "        d.useVersion(System.getenv('ORG_JSON_VERSION'))" \
+        "        d.because('Use the latest patched org.json release')" \
+        '      }' \
+        '    }' \
+        '  }' \
+        '}' > /tmp/override-deps.init.gradle; \
+    ORG_JSON_VERSION="${ORG_JSON_VERSION}" \
     STIRLING_FLAVOR=core DISABLE_ADDITIONAL_FEATURES=true \
-    gradle :stirling-pdf:bootJar :buildRestartHelper \
+    gradle -I /tmp/override-deps.init.gradle :stirling-pdf:bootJar :buildRestartHelper \
         -PbuildWithFrontend=true \
         -PbuildWithPortal=false \
         -PjpdfiumPlatforms="${JPDFIUM_PLATFORM}" \
@@ -81,6 +97,8 @@ RUN set -eux; \
         --no-daemon; \
     ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
     cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
+    jar tf /app/out-app.jar | grep "^BOOT-INF/lib/json-" ; \
+    jar tf /app/out-app.jar | grep -F "BOOT-INF/lib/json-${ORG_JSON_VERSION}.jar" > /dev/null; \
     cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar; \
     # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
     sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /app/scripts/init-without-ocr.sh; \

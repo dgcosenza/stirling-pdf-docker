@@ -261,6 +261,7 @@ docker buildx build --platform linux/amd64 --load \
 - **Strict open-source MIT build:** Upstream Stirling-PDF mixes MIT core code with proprietary directories (`app/proprietary/`, `app/saas/`, `engine/`) governed by the non-redistributable Stirling PDF User License. Purging those directories before compilation and setting `STIRLING_FLAVOR=core` guarantees clean MIT redistribution compliance.
 - **Debian 13 (`trixie-slim`) + Adoptium Temurin 25 JRE:** Installs `temurin-25-jre` from Adoptium's official GPG-verified Debian 13 APT repository (`3B04D753C9050D9A5D343F39843C48A565F8F04B`) rather than Ubuntu 24.04, with `tini` as PID 1 and non-root execution (`UID 1000`).
 - **SHA-256 verified build toolchain:** Node.js and `task` binaries in the discarded builder stage are fetched directly from upstream releases and verified by SHA-256 checksum rather than piping remote scripts to a shell.
+- **Patched transitive Java dependencies:** The upstream Gradle build pins some transitive libraries to old releases. Where a fixed release exists, the image build overrides it through a Gradle init script (currently `org.json:json`, resolved from Maven Central on every CI run) and verifies the bundled jar version, so the all-severity vulnerability gate stays green without modifying upstream sources.
 - **Hadolint `DL3008` ignore:** Daily `--no-cache` security rebuilds intentionally pull the newest Debian 13 security updates via `apt-get`.
 
 ---

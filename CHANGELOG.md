@@ -8,6 +8,9 @@ Maintained by **Daniel G. Cosenza from FNX Labs**.
 
 ## [Unreleased]
 
+### Security
+- Override the transitive `org.json:json` dependency of the upstream build with the latest Maven Central release (resolved by CI on every run; fixes CVE-2026-59171, previously `20231013`), and verify the bundled jar version during the build.
+
 <!-- changelog:auto -->
 
 ## [3.5.0] — 2026-11-25

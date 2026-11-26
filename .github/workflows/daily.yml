@@ -97,6 +97,7 @@ jobs:
       stirling_version: ${{ steps.resolve.outputs.stirling_version }}
       debian_base: ${{ steps.resolve.outputs.debian_base }}
       gradle_base: ${{ steps.resolve.outputs.gradle_base }}
+      org_json_version: ${{ steps.resolve.outputs.org_json_version }}
       base_digest: ${{ steps.resolve.outputs.base_digest }}
       build_date: ${{ steps.resolve.outputs.build_date }}
       build_date_iso: ${{ steps.resolve.outputs.build_date_iso }}
@@ -125,7 +126,11 @@ jobs:
           GRADLE_BASE="gradle:${GRADLE_TAG}"
           [ -n "$GRADLE_DIGEST" ] && GRADLE_BASE="${GRADLE_BASE}@${GRADLE_DIGEST}"
 
+          ORG_JSON_VERSION="$(curl -fsSL https://repo1.maven.org/maven2/org/json/json/maven-metadata.xml | sed -n 's|.*<release>\([0-9]*\)</release>.*|\1|p' | head -n1)"
+          [ -n "$ORG_JSON_VERSION" ] || { echo "ERROR: cannot resolve org.json release" >&2; exit 1; }
+
           {
+            echo "org_json_version=${ORG_JSON_VERSION}"
             echo "debian_base=${DEBIAN_BASE}"
             echo "gradle_base=${GRADLE_BASE}"
             echo "base_digest=${BASE_DIGEST}"
@@ -188,6 +193,7 @@ jobs:
           build-args: |
             DEBIAN_BASE=${{ needs.resolve.outputs.debian_base }}
             GRADLE_BASE=${{ needs.resolve.outputs.gradle_base }}
+            ORG_JSON_VERSION=${{ needs.resolve.outputs.org_json_version }}
             STIRLING_VERSION=${{ needs.resolve.outputs.stirling_version }}
             ADOPTIUM_GPG_FPR=${{ env.ADOPTIUM_GPG_FPR }}
             IMAGE_CREATED=${{ needs.resolve.outputs.created }}
@@ -342,6 +348,7 @@ jobs:
           build-args: |
             DEBIAN_BASE=${{ needs.resolve.outputs.debian_base }}
             GRADLE_BASE=${{ needs.resolve.outputs.gradle_base }}
+            ORG_JSON_VERSION=${{ needs.resolve.outputs.org_json_version }}
             STIRLING_VERSION=${{ needs.resolve.outputs.stirling_version }}
             ADOPTIUM_GPG_FPR=${{ env.ADOPTIUM_GPG_FPR }}
             IMAGE_CREATED=${{ needs.resolve.outputs.created }}
