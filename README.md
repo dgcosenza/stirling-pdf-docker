@@ -33,8 +33,8 @@ A hardened, multi-arch, rootless **open-source MIT core** **Stirling-PDF** conta
 | Architectures | `linux/amd64, linux/arm64` |
 | Uncompressed size (per arch) | `amd64: 461.6 MB, arm64: 847.1 MB` |
 | Last verified build (UTC) | `2026-11-26` |
-| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:ed53bd46a0af2c92126565c50db364195ed9153133ff635aeb51a103583298d2` |
-| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:ed53bd46a0af2c92126565c50db364195ed9153133ff635aeb51a103583298d2` |
+| Published multi-arch digest | `dgcosenza/stirling-pdf@sha256:479327b68e735a1f8798eea6686436b36d943c72f24ae3c4861c2d6a0447712d` |
+| GHCR mirror | `ghcr.io/dgcosenza/stirling-pdf@sha256:479327b68e735a1f8798eea6686436b36d943c72f24ae3c4861c2d6a0447712d` |
 | Supply chain | Cosign OIDC signed + SPDX & CycloneDX SBOM attestations + SLSA Build L3 provenance |
 | Security gate (Trivy + Grype on SBOM) | **0 fixable findings of any severity** (76 upstream-unfixed) |
 
