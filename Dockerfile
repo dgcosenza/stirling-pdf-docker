@@ -9,6 +9,9 @@ ARG STIRLING_VERSION=3.5.0
 ARG NODE_VERSION=24.22.3
 ARG NODE_SHA256_AMD64=4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
 ARG NODE_SHA256_ARM64=6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c
+# org.json:json is a transitive dependency of the upstream build and is pinned there to an old release;
+# CI resolves the latest Maven Central release every run and overrides it (documented default below).
+ARG ORG_JSON_VERSION=20260814
 ARG TASK_VERSION=3.54.0
 ARG TASK_SHA256_AMD64=fd2ca4e80422699cb8a85888fbca612bbcf3c62f946c1b4bb1ca9fbe9edb1c44
 ARG TASK_SHA256_ARM64=126194e3c718cd2cce169b2ce886d493764773727d3102ddde59ccf1d1378849
@@ -27,6 +30,7 @@ ARG STIRLING_VERSION
 ARG NODE_VERSION
 ARG NODE_SHA256_AMD64
 ARG NODE_SHA256_ARM64
+ARG ORG_JSON_VERSION
 ARG TASK_VERSION
 ARG TASK_SHA256_AMD64
 ARG TASK_SHA256_ARM64
@@ -38,7 +42,7 @@ USER root
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates git xz-utils; \
+    apt-get install -y --no-install-recommends curl ca-certificates git xz-utils unzip; \
     update-ca-certificates; \
     ARCH="$(dpkg --print-architecture)"; \
     case "${ARCH}" in \
@@ -72,6 +76,14 @@ RUN set -eux; \
     # so only MIT-licensed open-source core code can enter the build artifacts. \
     rm -rf /app/app/proprietary/src /app/app/saas /app/engine; \
     JPDFIUM_PLATFORM="$([ "${TARGETARCH:-amd64}" = "arm64" ] && echo linux-arm64 || echo linux-x64)"; \
+    # Upstream resolves org.json:json transitively to an unpatched release. Add it as an \
+    # explicit dependency of the core module: Gradle conflict resolution selects the \
+    # highest version, so the CI-resolved patched release replaces the transitive one \
+    # and is packaged in the bootJar. A Gradle init-script resolutionStrategy override \
+    # was tried first but dropped the library from the fat jar, so do not switch back. \
+    sed -i "/^dependencies {/a\\    implementation 'org.json:json:${ORG_JSON_VERSION}'" \
+        /app/app/core/build.gradle; \
+    grep -F "org.json:json:${ORG_JSON_VERSION}" /app/app/core/build.gradle > /dev/null; \
     STIRLING_FLAVOR=core DISABLE_ADDITIONAL_FEATURES=true \
     gradle :stirling-pdf:bootJar :buildRestartHelper \
         -PbuildWithFrontend=true \
@@ -81,6 +93,38 @@ RUN set -eux; \
         --no-daemon; \
     ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
     cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
+    # com.posthog.java:posthog:1.2.0 shades org.json 20231013 (CVE-2026-59171) under \
+    # com/posthog/java/shaded/org/json and carries stale Maven metadata. Rebuild those \
+    # classes from the patched release sources so the fix is real, not just metadata. \
+    PATCH_DIR=/tmp/orgjson-patch; \
+    mkdir -p "${PATCH_DIR}/src" "${PATCH_DIR}/classes" "${PATCH_DIR}/app" "${PATCH_DIR}/posthog"; \
+    curl -fsSLo "${PATCH_DIR}/sources.jar" "https://repo1.maven.org/maven2/org/json/json/${ORG_JSON_VERSION}/json-${ORG_JSON_VERSION}-sources.jar"; \
+    unzip -qo "${PATCH_DIR}/sources.jar" -d "${PATCH_DIR}/src"; \
+    find "${PATCH_DIR}/src" -name '*.java' -exec sed -i 's/^package org[.]json;/package com.posthog.java.shaded.org.json;/' {} +; \
+    javac -nowarn -d "${PATCH_DIR}/classes" $(find "${PATCH_DIR}/src" -name '*.java'); \
+    unzip -qo /app/out-app.jar -d "${PATCH_DIR}/app"; \
+    POSTHOG_JAR="${PATCH_DIR}/app/BOOT-INF/lib/posthog-1.2.0.jar"; \
+    test -f "${POSTHOG_JAR}"; \
+    unzip -qo "${POSTHOG_JAR}" -d "${PATCH_DIR}/posthog"; \
+    rm -rf "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json"; \
+    mkdir -p "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json"; \
+    cp -a "${PATCH_DIR}/classes/com/posthog/java/shaded/org/json/." "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json/"; \
+    printf '%s\n' "version=${ORG_JSON_VERSION}" 'groupId=org.json' 'artifactId=json' > "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties"; \
+    grep -F "version=${ORG_JSON_VERSION}" "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties" > /dev/null; \
+    cp "${PATCH_DIR}/posthog/META-INF/MANIFEST.MF" "${PATCH_DIR}/posthog-manifest.mf"; \
+    rm -f "${PATCH_DIR}/posthog/META-INF/MANIFEST.MF"; \
+    jar cfm "${POSTHOG_JAR}" "${PATCH_DIR}/posthog-manifest.mf" -C "${PATCH_DIR}/posthog" .; \
+    # Update only that one nested jar in the original bootJar; a full re-pack breaks \
+    # Spring Boot's nested-jar classloader. \
+    mkdir -p "${PATCH_DIR}/staged/BOOT-INF/lib"; \
+    cp "${POSTHOG_JAR}" "${PATCH_DIR}/staged/BOOT-INF/lib/posthog-1.2.0.jar"; \
+    jar u0f /app/out-app.jar -C "${PATCH_DIR}/staged" BOOT-INF/lib/posthog-1.2.0.jar; \
+    echo "Bundled org.json entries:"; \
+    jar tf /app/out-app.jar | grep -F 'BOOT-INF/lib/json-' || true; \
+    jar tf /app/out-app.jar | grep -F "BOOT-INF/lib/json-${ORG_JSON_VERSION}.jar" > /dev/null; \
+    unzip -qo /app/out-app.jar 'BOOT-INF/lib/posthog-1.2.0.jar' -d "${PATCH_DIR}/verify"; \
+    unzip -qo "${PATCH_DIR}/verify/BOOT-INF/lib/posthog-1.2.0.jar" 'META-INF/maven/org.json/json/pom.properties' -d "${PATCH_DIR}/verify"; \
+    grep -F "version=${ORG_JSON_VERSION}" "${PATCH_DIR}/verify/META-INF/maven/org.json/json/pom.properties" > /dev/null; \
     cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar; \
     # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
     sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /app/scripts/init-without-ocr.sh; \

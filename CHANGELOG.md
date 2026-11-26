@@ -8,6 +8,9 @@ Maintained by **Daniel G. Cosenza from FNX Labs**.
 
 ## [Unreleased]
 
+### Security
+- Fix CVE-2026-59171 (`org.json:json` `20231013`) in both places: pin the transitive library to the latest Maven Central release (resolved by CI on every run) via an explicit core-module dependency, and rebuild the copy shaded inside `com.posthog.java:posthog:1.2.0` from the patched release sources. Verify the patched versions are bundled in the bootJar.
+
 <!-- changelog:auto -->
 
 ## [3.5.0] — 2026-11-25
