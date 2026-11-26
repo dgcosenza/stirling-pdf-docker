@@ -9,7 +9,7 @@ Maintained by **Daniel G. Cosenza from FNX Labs**.
 ## [Unreleased]
 
 ### Security
-- Build with the transitive `org.json:json` dependency pinned to the latest Maven Central release (resolved by CI on every run; fixes CVE-2026-59171, previously `20231013`) via an explicit core-module dependency, and verify the patched jar is bundled in the bootJar.
+- Fix CVE-2026-59171 (`org.json:json` `20231013`) in both places: pin the transitive library to the latest Maven Central release (resolved by CI on every run) via an explicit core-module dependency, and rebuild the copy shaded inside `com.posthog.java:posthog:1.2.0` from the patched release sources. Verify the patched versions are bundled in the bootJar.
 
 <!-- changelog:auto -->
 

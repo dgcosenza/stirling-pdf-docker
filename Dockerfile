@@ -93,9 +93,32 @@ RUN set -eux; \
         --no-daemon; \
     ls -lh /app/app/core/build/libs/*.jar /app/build/libs/restart-helper.jar; \
     cp /app/app/core/build/libs/*.jar /app/out-app.jar; \
+    # com.posthog.java:posthog:1.2.0 shades org.json 20231013 (CVE-2026-59171) under \
+    # com/posthog/java/shaded/org/json and carries stale Maven metadata. Rebuild those \
+    # classes from the patched release sources so the fix is real, not just metadata. \
+    PATCH_DIR=/tmp/orgjson-patch; \
+    mkdir -p "${PATCH_DIR}/src" "${PATCH_DIR}/classes" "${PATCH_DIR}/app" "${PATCH_DIR}/posthog"; \
+    curl -fsSLo "${PATCH_DIR}/sources.jar" "https://repo1.maven.org/maven2/org/json/json/${ORG_JSON_VERSION}/json-${ORG_JSON_VERSION}-sources.jar"; \
+    (cd "${PATCH_DIR}/src" && jar xf "${PATCH_DIR}/sources.jar"); \
+    find "${PATCH_DIR}/src" -name '*.java' -exec sed -i 's/^package org[.]json;/package com.posthog.java.shaded.org.json;/' {} +; \
+    javac -nowarn -d "${PATCH_DIR}/classes" $(find "${PATCH_DIR}/src" -name '*.java'); \
+    (cd "${PATCH_DIR}/app" && jar xf /app/out-app.jar); \
+    POSTHOG_JAR="${PATCH_DIR}/app/BOOT-INF/lib/posthog-1.2.0.jar"; \
+    test -f "${POSTHOG_JAR}"; \
+    (cd "${PATCH_DIR}/posthog" && jar xf "${POSTHOG_JAR}"); \
+    rm -rf "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json"; \
+    mkdir -p "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json"; \
+    cp -a "${PATCH_DIR}/classes/com/posthog/java/shaded/org/json/." "${PATCH_DIR}/posthog/com/posthog/java/shaded/org/json/"; \
+    printf '%s\n' "version=${ORG_JSON_VERSION}" 'groupId=org.json' 'artifactId=json' > "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties"; \
+    grep -F "version=${ORG_JSON_VERSION}" "${PATCH_DIR}/posthog/META-INF/maven/org.json/json/pom.properties" > /dev/null; \
+    (cd "${PATCH_DIR}/posthog" && jar cf "${POSTHOG_JAR}" .); \
+    (cd "${PATCH_DIR}/app" && jar cf /app/out-app.jar .); \
     echo "Bundled org.json entries:"; \
     jar tf /app/out-app.jar | grep -F 'BOOT-INF/lib/json-' || true; \
     jar tf /app/out-app.jar | grep -F "BOOT-INF/lib/json-${ORG_JSON_VERSION}.jar" > /dev/null; \
+    mkdir -p "${PATCH_DIR}/verify"; \
+    (cd "${PATCH_DIR}/verify" && jar xf /app/out-app.jar BOOT-INF/lib/posthog-1.2.0.jar && jar xf BOOT-INF/lib/posthog-1.2.0.jar META-INF/maven/org.json/json/pom.properties); \
+    grep -F "version=${ORG_JSON_VERSION}" "${PATCH_DIR}/verify/META-INF/maven/org.json/json/pom.properties" > /dev/null; \
     cp /app/build/libs/restart-helper.jar /app/out-restart-helper.jar; \
     # Guard root-only symlink creation so non-root startup (UID 1000) succeeds cleanly \
     sed -i 's|if \[ -x /scripts/stirling-diagnostics.sh \]|if [ "$(id -u)" -eq 0 ] \&\& [ -x /scripts/stirling-diagnostics.sh ]|' /app/scripts/init-without-ocr.sh; \
