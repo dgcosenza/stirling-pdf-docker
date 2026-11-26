@@ -227,7 +227,7 @@ gh attestation verify oci://ghcr.io/dgcosenza/stirling-pdf:latest --owner dgcose
 
 - **Preflight gates:** Every push and PR runs **Hadolint** (blocking on warning+), **Gitleaks** secret scanning across git history, and **public-content/attribution** checks.
 - **Vulnerability scan policy (all severities with a fix):** Every build generates **SPDX** and **CycloneDX** SBOMs with **Syft** per architecture, scans with **Trivy** (OS + Java JAR libraries: table, JSON, SARIF upload, blocking `--ignore-unfixed` gate) and **Grype** scanning the SPDX SBOM (`--only-fixed --fail-on negligible`), and enforces a **Dive** efficiency gate (`>= 95%`, `<= 5%` wasted user bytes).
-- **Current status:** **0 fixable findings of any severity** vulnerabilities across Debian 13 OS packages and compiled Java dependencies.
+- **Current status:** **0 fixable vulnerabilities of any severity** across Debian 13 OS packages and compiled Java dependencies.
 - **Dependency automation:** Renovate (`renovate.json`) pins base image digests and GitHub Action commit SHAs; Dependabot security alerts and OpenSSF Scorecard monitoring are enabled.
 - See [`SECURITY.md`](https://github.com/dgcosenza/stirling-pdf-docker/blob/main/SECURITY.md) for private disclosure instructions.
 

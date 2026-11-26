@@ -8,8 +8,8 @@ Only the latest daily build (`latest`) receives security updates. Immutable date
 
 ## Vulnerability Scanning & Gates
 
-- **Trivy** (OS + Java JAR libraries): SARIF uploaded to GitHub Code Scanning; table and JSON reports retained for 90 days; **blocking hard gate** on any fixable `CRITICAL` or `HIGH` finding.
-- **Grype**: **blocking hard gate** (`only-fixed: true`, severity cutoff `high`); table report retained for 90 days.
+- **Trivy** (OS + Java JAR libraries): SARIF uploaded to GitHub Code Scanning; table and JSON reports retained for 90 days; **blocking hard gate** on any fixable vulnerability of any severity.
+- **Grype**: **blocking hard gate** (`--only-fixed --fail-on negligible`, all severities); table report retained for 90 days.
 - **SBOM & Provenance**: SPDX-JSON SBOM via Syft plus provenance JSON retained for 90 days.
 
 ## Authentication Note
