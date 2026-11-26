@@ -209,7 +209,7 @@ jobs:
           set -euo pipefail
           IMG="${IMAGE_NAME}:ci-candidate-${ARCH}"
           DEBIAN_VERSION="$(docker run --rm --entrypoint cat "$IMG" /etc/debian_version | tr -d '\r\n')"
-          JAVA_VERSION="$(docker run --rm --entrypoint java "$IMG" -version 2>&1 | head -n 1 | tr -d '\r\n')"
+          JAVA_VERSION="$(docker run --rm --entrypoint java "$IMG" -version 2>&1 | sed -n '1p' | tr -d '\r\n')"
           SIZE_BYTES="$(docker image inspect --format='{{.Size}}' "$IMG")"
           SIZE_MB="$(python3 -c "print(f'{int(${SIZE_BYTES})/1000000:.1f}')")"
           {
