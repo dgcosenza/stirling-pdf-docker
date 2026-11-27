@@ -13,6 +13,22 @@ Maintained by **Daniel G. Cosenza from FNX Labs**.
 
 <!-- changelog:auto -->
 
+## [3.5.0] — 2026-11-27
+
+### Automated Daily Build
+- Verified components: Stirling-PDF (MIT core) `3.5.0`, Java Runtime `openjdk version "25.0.5.1" 2026-11-17 LTS`, Base OS `Debian 13.8 (trixie-slim)`.
+- Architectures verified: `linux/amd64, linux/arm64` (native smoke tests + Dive efficiency gate).
+- Upstream changes:
+  - **Stirling-PDF:** `3.5.0` -> `3.5.0`
+  - **Upstream version changed:** `no`
+  - Official Stirling-PDF v3.5.0 release (https://github.com/Stirling-Tools/Stirling-PDF/releases/tag/v3.5.0).
+  - Stirling Office Convert has now replaced Libreoffice in our docker containers!
+  - Along with speed increases and better quality conversions it also means our docker going forward in 3.5.1 will be half the size!  Thank you to everyone who sent us example files...
+- Vulnerability gate: **0 fixable findings of any severity** in Trivy and Grype (SBOM scan) (76 upstream-unfixed).
+- Published multi-arch digest (Docker Hub + GHCR): `dgcosenza/stirling-pdf@sha256:5850f5f717decd28d19e52873532311f9689192cae11f9936e26790900f69acd` (Cosign OIDC signed + SPDX/CycloneDX SBOM + SLSA L3 provenance).
+
+---
+
 ## [3.5.0] — 2026-11-26
 
 ### Automated Daily Build
