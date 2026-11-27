@@ -7,6 +7,7 @@
 [![SLSA Level 3](https://img.shields.io/badge/SLSA-Level%203-brightgreen.svg)](#supply-chain-verification)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-informational.svg)](#supported-architectures)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/dgcosenza/stirling-pdf-docker/badge)](https://scorecard.dev/viewer/?uri=github.com/dgcosenza/stirling-pdf-docker)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/17172/badge)](https://www.bestpractices.dev/projects/17172)
 [![Docker Pulls](https://img.shields.io/docker/pulls/dgcosenza/stirling-pdf)](https://hub.docker.com/r/dgcosenza/stirling-pdf)
 [![Docker Image Size](https://img.shields.io/docker/image-size/dgcosenza/stirling-pdf/latest)](https://hub.docker.com/r/dgcosenza/stirling-pdf)
 [![Latest Release](https://img.shields.io/github/v/release/dgcosenza/stirling-pdf-docker?label=version)](https://github.com/dgcosenza/stirling-pdf-docker/releases)
